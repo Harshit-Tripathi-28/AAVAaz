@@ -1,0 +1,215 @@
+// AAVAaz Multi-Tenant Relational Schema
+// Generator and Data Source
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+enum InstitutionType {
+  COLLEGE
+  UNIVERSITY
+  SCHOOL
+  POLYTECHNIC
+  RESEARCH_INSTITUTE
+  CORPORATE_ACADEMY
+  OTHER
+}
+
+enum InstitutionStatus {
+  ACTIVE
+  SUSPENDED
+  ONBOARDING
+  DECOMMISSIONED
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum DepartmentStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+// ============================================================================
+// Tenant Core: Institution
+// ============================================================================
+
+model Institution {
+  id          String            @id @default(uuid())
+  name        String
+  code        String            @unique
+  domain      String?           @unique
+  type        InstitutionType   @default(COLLEGE)
+  status      InstitutionStatus @default(ACTIVE)
+  settings    Json?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relational tenant entities
+  users       User[]
+  roles       Role[]
+  departments Department[]
+  auditLogs   AuditLog[]
+
+  @@map("institutions")
+}
+
+// ============================================================================
+// Organizational Units: Department
+// ============================================================================
+
+model Department {
+  id                 String           @id @default(uuid())
+  institutionId      String
+  institution        Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name               String
+  code               String
+  description        String?
+  status             DepartmentStatus @default(ACTIVE)
+  parentDepartmentId String?
+  parentDepartment   Department?      @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: SetNull)
+  subDepartments     Department[]     @relation("DepartmentHierarchy")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  users              User[]
+
+  @@unique([institutionId, code])
+  @@index([institutionId, parentDepartmentId])
+  @@map("departments")
+}
+
+// ============================================================================
+// Identity & Membership: User
+// ============================================================================
+
+model User {
+  id                 String       @id @default(uuid())
+  institutionId      String
+  institution        Institution  @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  email              String
+  passwordHash       String
+  firstName          String
+  lastName           String
+  phone              String?
+  avatarUrl          String?
+  status             UserStatus   @default(ACTIVE)
+  departmentId       String?
+  department         Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  // RBAC & Audit relations
+  userRoles          UserRole[]
+  auditLogs          AuditLog[]
+  assignedUserRoles  UserRole[]   @relation("AssignedByRelation")
+
+  @@unique([institutionId, email])
+  @@index([institutionId, status])
+  @@index([institutionId, departmentId])
+  @@map("users")
+}
+
+// ============================================================================
+// Authorization: Role, Permission, RolePermission, UserRole
+// Permissions are the primary authorization primitive.
+// Roles are configurable, institution-scoped groupings of permissions.
+// ============================================================================
+
+model Role {
+  id              String           @id @default(uuid())
+  institutionId   String?
+  institution     Institution?     @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name            String
+  code            String
+  description     String?
+  isSystemRole    Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([institutionId, code])
+  @@index([institutionId])
+  @@map("roles")
+}
+
+model Permission {
+  id              String           @id @default(uuid())
+  code            String           @unique
+  name            String
+  module          String
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+  assignedBy String?
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assigner   User?    @relation("AssignedByRelation", fields: [assignedBy], references: [id], onDelete: SetNull)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@index([assignedBy])
+  @@map("user_roles")
+}
+
+// ============================================================================
+// Governance: Tamper-Evident AuditLog
+// ============================================================================
+
+model AuditLog {
+  id            String      @id @default(uuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action        String
+  entityType    String
+  entityId      String
+  oldValues     Json?
+  newValues     Json?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime    @default(now())
+
+  @@index([institutionId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
