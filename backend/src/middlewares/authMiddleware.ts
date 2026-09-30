@@ -1,22 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 import { UnauthorizedError } from "../errors/AppError.js";
 import { prisma } from "../config/database.js";
+import { verifyAccessToken } from "../utils/security.js";
 import { logger } from "../utils/logger.js";
-
-/**
- * Interface representing the decoded identity token payload.
- */
-export interface TokenPayload {
-  userId: string;
-  institutionId: string;
-}
 
 /**
  * Production Authentication Middleware
  *
- * Verifies the identity token from the Authorization header,
- * extracts the authenticated user along with their active roles and permissions,
- * and attaches the verified AuthenticatedUserContext to req.user.
+ * Verifies JWT access token signature and expiration,
+ * loads the active user from the database to guarantee fresh authorization state,
+ * and attaches AuthenticatedUserContext to req.user.
  */
 export async function authenticate(
   req: Request,
@@ -34,25 +27,21 @@ export async function authenticate(
       throw new UnauthorizedError("Authentication token is empty");
     }
 
-    // Decode / verify token structure
-    // In production this verifies JWT signature against env.JWT_SECRET
-    // Here we enforce strict payload contract:
-    let payload: TokenPayload;
-    try {
-      // Basic token parsing for structured payload
-      const decoded = JSON.parse(Buffer.from(token.split(".")[1] || token, "base64").toString());
-      if (!decoded.userId || !decoded.institutionId) {
-        throw new Error("Token payload missing required claims");
-      }
-      payload = decoded;
-    } catch {
-      throw new UnauthorizedError("Invalid or corrupted authentication token");
-    }
+    // Cryptographically verify token signature and claims
+    const payload = verifyAccessToken(token);
 
-    // Load active user and their permissions directly from the database to guarantee fresh authorization state
+    // Load active user and their permissions directly from the database
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
       include: {
+        institution: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            status: true,
+          },
+        },
         userRoles: {
           include: {
             role: {
@@ -73,11 +62,19 @@ export async function authenticate(
       throw new UnauthorizedError("User associated with token no longer exists");
     }
 
+    if (user.institutionId !== payload.institutionId) {
+      throw new UnauthorizedError("Token institution claim mismatch");
+    }
+
     if (user.status !== "ACTIVE") {
       throw new UnauthorizedError(`User account is currently ${user.status.toLowerCase()}`);
     }
 
-    // Collect distinct permissions and roles from all assigned roles
+    if (user.institution.status !== "ACTIVE") {
+      throw new UnauthorizedError(`Institution is currently ${user.institution.status.toLowerCase()}`);
+    }
+
+    // Collect distinct roles and canonical permissions
     const roles: string[] = [];
     const permissionsSet = new Set<string>();
 
@@ -98,9 +95,11 @@ export async function authenticate(
       permissions: Array.from(permissionsSet),
     };
 
+    req.tenant = user.institution;
+
     next();
   } catch (error) {
-    logger.debug({ error }, "Authentication failed");
+    logger.debug({ error }, "Authentication verification failed");
     next(error);
   }
 }

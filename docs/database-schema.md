@@ -16,13 +16,14 @@ The root tenant entity representing a discrete educational or organizational est
 - `status` (Enum: `ACTIVE`, `SUSPENDED`, `ONBOARDING`, `DECOMMISSIONED`)
 - `settings` (JSONB, tenant-level customizations such as escalation windows, SLAs, custom labels)
 - `createdAt`, `updatedAt` (Timestamps)
+- **Relations**: `users`, `roles`, `departments`, `auditLogs`, `sessions`
 
 ### 2. `User`
-Members associated with an institution. Note: Users belong to an institution tenant.
+Members associated with an institution.
 - `id` (UUID, Primary Key)
 - `institutionId` (UUID, Foreign Key referencing `Institution.id` ON DELETE RESTRICT)
 - `email` (VarChar, user email address)
-- `passwordHash` (VarChar, bcrypt/argon2 hash)
+- `passwordHash` (VarChar, bcrypt salt + hash)
 - `firstName`, `lastName` (VarChar)
 - `phone` (VarChar, nullable)
 - `avatarUrl` (VarChar, nullable)
@@ -30,9 +31,10 @@ Members associated with an institution. Note: Users belong to an institution ten
 - `departmentId` (UUID, Foreign Key referencing `Department.id` ON DELETE SET NULL)
 - `createdAt`, `updatedAt` (Timestamps)
 - **Constraints**:
-  - `@@unique([institutionId, email])`: An email is unique within the tenant institution.
+  - `@@unique([institutionId, email])`: Unique email within tenant.
   - `@@index([institutionId, status])`
   - `@@index([institutionId, departmentId])`
+- **Relations**: `userRoles`, `auditLogs`, `assignedUserRoles`, `sessions`
 
 ### 3. `Department`
 Organizational units, academic departments, hostels, laboratories, or administrative branches.
@@ -52,10 +54,10 @@ Organizational units, academic departments, hostels, laboratories, or administra
 Configurable role containers for grouping permissions within an institution.
 - `id` (UUID, Primary Key)
 - `institutionId` (UUID, nullable Foreign Key referencing `Institution.id`; NULL indicates a platform-level role)
-- `name` (VarChar, e.g., "Dean of Student Affairs", "Hostel Warden", "Faculty")
+- `name` (VarChar, e.g., "Institution Administrator", "Concern Resolver", "Faculty", "Student")
 - `code` (VarChar, slug identifier)
 - `description` (Text, nullable)
-- `isSystemRole` (Boolean, default `false`; protects system baseline templates from deletion)
+- `isSystemRole` (Boolean, default `false`; protects baseline templates from deletion)
 - `createdAt`, `updatedAt` (Timestamps)
 - **Constraints**:
   - `@@unique([institutionId, code])`
@@ -64,7 +66,7 @@ Configurable role containers for grouping permissions within an institution.
 ### 5. `Permission`
 Canonical, fine-grained permission primitive catalog.
 - `id` (UUID, Primary Key)
-- `code` (VarChar, globally unique permission string, e.g., `concern:create`, `concern:reassign`, `audit:read`)
+- `code` (VarChar, globally unique permission string, e.g., `concern:create`, `concern:resolve`, `user:manage`, `audit:read`)
 - `name` (VarChar)
 - `module` (VarChar, grouping module e.g., `CONCERN`, `USER`, `DEPARTMENT`, `SETTINGS`, `AUDIT`)
 - `description` (Text, nullable)
@@ -90,20 +92,37 @@ Join table mapping users to assigned roles within their institution.
 - **Constraints**:
   - `@@id([userId, roleId])`
   - `@@index([roleId])`
+  - `@@index([assignedBy])`
 
-### 8. `AuditLog`
-Immutable operational audit record.
+### 8. `Session`
+Stateful session model for secure refresh token rotation and session revocation.
+- `id` (UUID, Primary Key)
+- `userId` (UUID, FK referencing `User.id` ON DELETE CASCADE)
+- `institutionId` (UUID, FK referencing `Institution.id` ON DELETE CASCADE)
+- `tokenHash` (VarChar, unique SHA-256 hash of refresh token; raw token is never stored)
+- `userAgent` (Text, nullable client user agent string)
+- `ipAddress` (VarChar, nullable client IP address)
+- `expiresAt` (Timestamp)
+- `revokedAt` (Timestamp, nullable; set upon logout, rotation, or reuse detection)
+- `createdAt`, `updatedAt` (Timestamps)
+- **Constraints**:
+  - `@@unique([tokenHash])`
+  - `@@index([userId, revokedAt])`
+  - `@@index([institutionId])`
+
+### 9. `AuditLog`
+Structured operational audit records.
 - `id` (UUID, Primary Key)
 - `institutionId` (UUID, FK referencing `Institution.id` ON DELETE CASCADE)
 - `userId` (UUID, nullable FK referencing `User.id` ON DELETE SET NULL)
-- `action` (VarChar, e.g., `USER_REGISTERED`, `ROLE_MODIFIED`, `PERMISSION_REVOKED`)
-- `entityType` (VarChar, e.g., `User`, `Role`, `Department`, `Concern`)
+- `action` (VarChar, e.g., `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `LOGOUT`, `SESSION_REVOKED`, `INSTITUTION_PROVISIONED`)
+- `entityType` (VarChar, e.g., `User`, `Role`, `Department`, `Session`, `Institution`)
 - `entityId` (VarChar)
 - `oldValues` (JSONB, nullable)
-- `newValues` (JSONB, nullable)
+- `newValues` (JSONB, nullable; structured with `_schemaVersion: "1.0"`)
 - `ipAddress` (VarChar, nullable)
 - `userAgent` (VarChar, nullable)
-- `createdAt` (Timestamp, immutable)
+- `createdAt` (Timestamp)
 - **Constraints**:
   - `@@index([institutionId, createdAt])`
   - `@@index([entityType, entityId])`

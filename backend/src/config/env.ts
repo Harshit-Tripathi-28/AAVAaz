@@ -18,7 +18,9 @@ const envSchema = z.object({
   JWT_SECRET: z
     .string()
     .min(16, "JWT_SECRET must be at least 16 characters long"),
-  JWT_EXPIRES_IN: z.string().default("7d"),
+  JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
+  REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().default(7),
+  COOKIE_SECRET: z.string().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

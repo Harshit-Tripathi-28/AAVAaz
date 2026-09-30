@@ -38,25 +38,53 @@ export interface HealthStatus {
   };
 }
 
-export interface Institution {
+export interface InstitutionPublic {
   id: string;
   name: string;
   code: string;
-  domain?: string | null;
   type: string;
-  status: "ACTIVE" | "SUSPENDED" | "ONBOARDING" | "DECOMMISSIONED";
-  createdAt: string;
-  updatedAt: string;
+  domain?: string | null;
 }
 
-export interface UserProfile {
+export interface AuthenticatedUser {
   id: string;
   institutionId: string;
   email: string;
   firstName: string;
   lastName: string;
-  status: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING_VERIFICATION";
   departmentId?: string | null;
+  status: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING_VERIFICATION";
+}
+
+export interface TenantInfo {
+  id: string;
+  name: string;
+  code: string;
+  type: string;
+}
+
+export interface AuthResponseData {
+  accessToken: string;
+  user: AuthenticatedUser;
+  institution: TenantInfo;
   roles: string[];
   permissions: string[];
+}
+
+export interface AuthMeResponseData {
+  user: {
+    id: string;
+    institutionId: string;
+    email: string;
+    status: string;
+    departmentId?: string | null;
+    roles: string[];
+    permissions: string[];
+  };
+  tenant: {
+    id: string;
+    code: string;
+    name: string;
+    status: string;
+  };
 }

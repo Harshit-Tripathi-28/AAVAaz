@@ -1,0 +1,29 @@
+warning: in the working copy of '.env.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/.env.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/prisma/schema.prisma', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/app.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/config/env.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/middlewares/authMiddleware.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/database-schema.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/App.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/services/apiClient.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/types/api.ts', LF will be replaced by CRLF the next time Git touches it
+ .env.example                              |   7 [32m+[m[31m-[m
+ backend/.env.example                      |   9 [32m+[m[31m-[m
+ backend/package-lock.json                 | 239 [32m++++++++++++++++++++++++[m
+ backend/package.json                      |  10 [32m+[m[31m-[m
+ backend/prisma/schema.prisma              |  30 [32m++[m[31m-[m
+ backend/src/app.ts                        |   8 [32m+[m
+ backend/src/config/env.ts                 |   4 [32m+[m[31m-[m
+ backend/src/middlewares/authMiddleware.ts |  55 [32m+++[m[31m---[m
+ docs/database-schema.md                   |  43 [32m+++[m[31m--[m
+ frontend/package-lock.json                |  58 [32m++++++[m
+ frontend/package.json                     |   1 [32m+[m
+ frontend/src/App.tsx                      | 298 [32m++++[m[31m--------------------------[m
+ frontend/src/services/apiClient.ts        | 122 [32m++++++++++[m[31m--[m
+ frontend/src/types/api.ts                 |  42 [32m++++[m[31m-[m
+ 14 files changed, 592 insertions(+), 334 deletions(-)
